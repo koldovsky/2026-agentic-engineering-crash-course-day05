@@ -5,6 +5,14 @@ import { dirname, resolve } from "node:path";
 import { BundleSchema, MachineSchema, MAX_RECORDS, emptyBundle, type Bundle, type Machine } from "./schema";
 import { MachineDisplayNamesSchema, type MachineDisplayNames } from "./display-names";
 
+// On Vercel the deployment directory is read-only; only /tmp is writable (and ephemeral), so the
+// hosted demo keeps its local ledger there. Locally nothing changes: data/token-atlas.sqlite.
+export function defaultDatabasePath(): string {
+  if (process.env.TOKEN_ATLAS_DB) return process.env.TOKEN_ATLAS_DB;
+  if (process.env.VERCEL) return "/tmp/token-atlas.sqlite";
+  return resolve("data", "token-atlas.sqlite");
+}
+
 export class ImportConflictError extends Error {
   constructor() { super("This file conflicts with existing data. Keep machine attribution consistent and export again."); }
 }
@@ -16,7 +24,7 @@ export interface MergeResult { addedMachines: number; addedUsage: number; addedP
 export class Ledger {
   private db: DatabaseSync;
 
-  constructor(path = process.env.TOKEN_ATLAS_DB ?? resolve("data", "token-atlas.sqlite")) {
+  constructor(path = defaultDatabasePath()) {
     if (path !== ":memory:") mkdirSync(dirname(resolve(path)), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec("PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
@@ -122,7 +130,7 @@ export function withLedger<T>(action: (ledger: Ledger) => T): T {
 
 /** Read existing attribution without creating a ledger or scanning provider folders. */
 export function findImportedMachine(machineId: string): Machine | undefined {
-  const path = process.env.TOKEN_ATLAS_DB ?? resolve("data", "token-atlas.sqlite");
+  const path = defaultDatabasePath();
   // The ledger is runtime user data, never a build asset to include in tracing.
   if (path === ":memory:" || !existsSync(/* turbopackIgnore: true */ path)) return undefined;
   const db = new DatabaseSync(path, { readOnly: true });
