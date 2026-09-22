@@ -6,9 +6,13 @@ export class HttpError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
+// The hosted demo (Vercel, or TOKEN_ATLAS_PUBLIC_DEMO=1) is reached through a public host name, so the
+// loopback rule is lifted there; the same-origin checks below still apply to every mutation.
+const HOSTED_DEMO = process.env.VERCEL === "1" || process.env.TOKEN_ATLAS_PUBLIC_DEMO === "1";
+
 export function assertLocalRequest(request: Request, mutation = false) {
   const host = request.headers.get("host") ?? "";
-  if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(host)) throw new HttpError(403, "This app accepts localhost requests only.");
+  if (!HOSTED_DEMO && !/^(localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i.test(host)) throw new HttpError(403, "This app accepts localhost requests only.");
   const protocol = new URL(request.url).protocol;
   const expectedOrigin = `${protocol}//${host}`.toLowerCase();
   const origin = request.headers.get("origin");
